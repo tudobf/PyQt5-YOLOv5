@@ -59,4 +59,9 @@ pyinstaller -D -w --add-data="./utils/*;./utils" --add-data="./config/*;./config
 
 You can find ui files in [main_win](./main_win) and [dialog](dialog)
 
+### Further Improvements
+- [YOLOv8-PySide6-GUI](https://github.com/Jai-wei/YOLOv8-PySide6-GUI?tab=readme-ov-file) by [Jai-wei](https://github.com/Jai-wei)
+
+- [YOLOv5_v7.0 + deepsort](https://github.com/Javacr/PyQt5-YOLOv5/tree/yolov5_v7.0) by [CUMTduchen](https://github.com/CUMTduchen)
+
 
