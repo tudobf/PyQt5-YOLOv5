@@ -20,7 +20,7 @@ from utils.general import check_img_size, check_requirements, check_imshow, colo
     apply_classifier, scale_coords, xyxy2xywh, strip_optimizer, set_logging, increment_path
 # from utils.plots import colors, plot_one_box, plot_one_box_PIL
 from utils.plots import Annotator, colors, save_one_box
-
+# 提交测试
 from utils.torch_utils import select_device
 from utils.capnums import Camera
 from dialog.rtsp_win import Window
