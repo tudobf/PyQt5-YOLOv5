@@ -20,7 +20,7 @@ from utils.general import check_img_size, check_requirements, check_imshow, colo
     apply_classifier, scale_coords, xyxy2xywh, strip_optimizer, set_logging, increment_path
 # from utils.plots import colors, plot_one_box, plot_one_box_PIL
 from utils.plots import Annotator, colors, save_one_box
-# 提交测试
+
 from utils.torch_utils import select_device
 from utils.capnums import Camera
 from dialog.rtsp_win import Window
@@ -37,6 +37,8 @@ class DetThread(QThread):
 
     def __init__(self):
         super(DetThread, self).__init__()
+        self.raw_image = None
+        self.processed_image = None
         self.weights = './yolov5s.pt'
         self.current_weight = './yolov5s.pt'
         self.source = '0'
@@ -96,7 +98,7 @@ class DetThread(QThread):
                 dataset = LoadWebcam(self.source, img_size=imgsz, stride=stride)
                 # bs = len(dataset)  # batch_size
             else:
-                dataset = LoadImages(self.source, img_size=imgsz, stride=stride)
+                dataset = LoadImages(self.source, img_size=imgsz, stride=stride)#
 
             # Run inference
             if device.type != 'cpu':
@@ -136,6 +138,7 @@ class DetThread(QThread):
                     # if jump_count % 5 != 0:
                     #     continue
                     count += 1
+
                     if count % 30 == 0 and count >= 30:
                         fps = int(30/(time.time()-start_time))
                         self.send_fps.emit('fps：'+str(fps))
@@ -197,6 +200,12 @@ class DetThread(QThread):
                                 self.out = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*"mp4v"), ori_fps,
                                                            (width, height))
                             self.out.write(im0)
+
+                    self.raw_image = im0s if isinstance(im0s, np.ndarray) else im0s[0]
+                    self.processed_image = im0
+                    self.send_img.emit(im0)
+                    self.send_raw.emit(self.raw_image)
+
                     if percent == self.percent_length:
                         print(count)
                         self.send_percent.emit(0)
@@ -204,6 +213,7 @@ class DetThread(QThread):
                         if hasattr(self, 'out'):
                             self.out.release()
                         break
+
 
         except Exception as e:
             self.send_msg.emit('%s' % e)
@@ -215,19 +225,22 @@ class MainWindow(QMainWindow, Ui_mainWindow):
         super(MainWindow, self).__init__(parent)
         self.setupUi(self)
         self.m_flag = False
+        self.resizing = False
+        self.dragging = False
+        self.drag_position = None
 
         # style 1: window can be stretched
-        # self.setWindowFlags(Qt.CustomizeWindowHint | Qt.WindowStaysOnTopHint)
+        self.setWindowFlags(Qt.CustomizeWindowHint | Qt.WindowStaysOnTopHint)
 
         # style 2: window can not be stretched
-        self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint
-                            | Qt.WindowSystemMenuHint | Qt.WindowMinimizeButtonHint | Qt.WindowMaximizeButtonHint)
+        # self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint
+        #                     | Qt.WindowSystemMenuHint | Qt.WindowMinimizeButtonHint | Qt.WindowMaximizeButtonHint)
         # self.setWindowOpacity(0.85)  # Transparency of window
 
         self.minButton.clicked.connect(self.showMinimized)
         self.maxButton.clicked.connect(self.max_or_restore)
         # show Maximized window
-        self.maxButton.animateClick(10)
+        # self.maxButton.animateClick(10)  # 注释掉这一行
         self.closeButton.clicked.connect(self.close)
 
         self.qtimer = QTimer(self)
@@ -261,7 +274,6 @@ class MainWindow(QMainWindow, Ui_mainWindow):
         self.fileButton.clicked.connect(self.open_file)
         self.cameraButton.clicked.connect(self.chose_cam)
         self.rtspButton.clicked.connect(self.chose_rtsp)
-
         self.runButton.clicked.connect(self.run_or_continue)
         self.stopButton.clicked.connect(self.stop)
 
@@ -276,6 +288,40 @@ class MainWindow(QMainWindow, Ui_mainWindow):
         self.checkBox.clicked.connect(self.checkrate)
         self.saveCheckBox.clicked.connect(self.is_save)
         self.load_setting()
+
+    def resizeEvent(self, event):
+        self.show_image(self.det_thread.raw_image, self.raw_video)
+        self.show_image(self.det_thread.processed_image, self.out_video)
+        super(MainWindow, self).resizeEvent(event)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.drag_position = event.globalPos() - self.frameGeometry().topLeft()
+            if self.is_on_edge(event.pos()):
+                self.resizing = True
+            else:
+                self.dragging = True
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if self.resizing:
+            self.resize_window(event.globalPos())
+        elif self.dragging:
+            self.move(event.globalPos() - self.drag_position)
+            event.accept()
+
+    def mouseReleaseEvent(self, event):
+        self.resizing = False
+        self.dragging = False
+
+    def is_on_edge(self, pos):
+        margin = 10
+        return pos.x() < margin or pos.y() < margin or pos.x() > self.width() - margin or pos.y() > self.height() - margin
+
+    def resize_window(self, global_pos):
+        rect = self.geometry()
+        rect.setBottomRight(global_pos)
+        self.setGeometry(rect)
 
     def search_pt(self):
         pt_list = os.listdir('./pt')
@@ -330,12 +376,13 @@ class MainWindow(QMainWindow, Ui_mainWindow):
         except Exception as e:
             self.statistic_msg('%s' % e)
 
+    # 修改 MainWindow 类中的 chose_cam 方法
     def chose_cam(self):
         try:
             self.stop()
             MessageBox(
                 self.closeButton, title='Tips', text='Loading camera', time=2000, auto=True).exec_()
-            # get the number of local cameras
+            # 获取本地摄像头数量
             _, cams = Camera().get_cam_num()
             popMenu = QMenu()
             popMenu.setFixedWidth(self.cameraButton.width())
@@ -366,7 +413,7 @@ class MainWindow(QMainWindow, Ui_mainWindow):
             pos = QPoint(x, y)
             action = popMenu.exec_(pos)
             if action:
-                self.det_thread.source = action.text()
+                self.det_thread.source = int(action.text())  # 确保 source 是整数
                 self.statistic_msg('Loading camera：{}'.format(action.text()))
         except Exception as e:
             self.statistic_msg('%s' % e)
