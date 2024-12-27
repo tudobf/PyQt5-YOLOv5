@@ -158,17 +158,13 @@ class DetThread(QThread):
 
                     pred = model(img, augment=augment)[0]
 
-                    # Apply NMS
                     pred = non_max_suppression(pred, self.conf_thres, self.iou_thres, classes, agnostic_nms, max_det=max_det)
-                    # Process detections
-                    for i, det in enumerate(pred):  # detections per image
+                    for i, det in enumerate(pred):
                         im0 = im0s.copy()
                         annotator = Annotator(im0, line_width=line_thickness, example=str(names))
                         if len(det):
-                            # Rescale boxes from img_size to im0 size
                             det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
 
-                            # Write results
                             for *xyxy, conf, cls in reversed(det):
                                 c = int(cls)  # integer class
                                 statistic_dic[names[c]] += 1
@@ -193,8 +189,6 @@ class DetThread(QThread):
                                 ori_fps = int(self.vid_cap.get(cv2.CAP_PROP_FPS))
                                 if ori_fps == 0:
                                     ori_fps = 25
-                                # width = int(self.vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                                # height = int(self.vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                                 width, height = im0.shape[1], im0.shape[0]
                                 save_path = os.path.join(self.save_fold, time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime()) + '.mp4')
                                 self.out = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*"mp4v"), ori_fps,
@@ -229,25 +223,18 @@ class MainWindow(QMainWindow, Ui_mainWindow):
         self.dragging = False
         self.drag_position = None
 
-        # style 1: window can be stretched
         self.setWindowFlags(Qt.CustomizeWindowHint | Qt.WindowStaysOnTopHint)
-
-        # style 2: window can not be stretched
-        # self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint
-        #                     | Qt.WindowSystemMenuHint | Qt.WindowMinimizeButtonHint | Qt.WindowMaximizeButtonHint)
-        # self.setWindowOpacity(0.85)  # Transparency of window
 
         self.minButton.clicked.connect(self.showMinimized)
         self.maxButton.clicked.connect(self.max_or_restore)
-        # show Maximized window
-        # self.maxButton.animateClick(10)  # 注释掉这一行
+
         self.closeButton.clicked.connect(self.close)
 
         self.qtimer = QTimer(self)
         self.qtimer.setSingleShot(True)
         self.qtimer.timeout.connect(lambda: self.statistic_label.clear())
 
-        # search models automatically
+
         self.comboBox.clear()
         self.pt_list = os.listdir('./pt')
         self.pt_list = [file for file in self.pt_list if file.endswith('.pt')]
@@ -376,7 +363,6 @@ class MainWindow(QMainWindow, Ui_mainWindow):
         except Exception as e:
             self.statistic_msg('%s' % e)
 
-    # 修改 MainWindow 类中的 chose_cam 方法
     def chose_cam(self):
         try:
             self.stop()
@@ -413,7 +399,7 @@ class MainWindow(QMainWindow, Ui_mainWindow):
             pos = QPoint(x, y)
             action = popMenu.exec_(pos)
             if action:
-                self.det_thread.source = int(action.text())  # 确保 source 是整数
+                self.det_thread.source = int(action.text())
                 self.statistic_msg('Loading camera：{}'.format(action.text()))
         except Exception as e:
             self.statistic_msg('%s' % e)
@@ -478,7 +464,6 @@ class MainWindow(QMainWindow, Ui_mainWindow):
 
     def statistic_msg(self, msg):
         self.statistic_label.setText(msg)
-        # self.qtimer.start(3000)
 
     def show_msg(self, msg):
         self.runButton.setChecked(Qt.Unchecked)
@@ -494,7 +479,6 @@ class MainWindow(QMainWindow, Ui_mainWindow):
     def open_file(self):
 
         config_file = 'config/fold.json'
-        # config = json.load(open(config_file, 'r', encoding='utf-8'))
         config = json.load(open(config_file, 'r', encoding='utf-8'))
         open_fold = config['open_fold']
         if not os.path.exists(open_fold):
@@ -525,12 +509,12 @@ class MainWindow(QMainWindow, Ui_mainWindow):
                 self.det_thread.start()
             source = os.path.basename(self.det_thread.source)
             source = 'camera' if source.isnumeric() else source
-            self.statistic_msg('Detecting >> model：{}，file：{}'.
+            self.statistic_msg('检测中...  使用model：{}，file：{}'.
                                format(os.path.basename(self.det_thread.weights),
                                       source))
         else:
             self.det_thread.is_continue = False
-            self.statistic_msg('Pause')
+            self.statistic_msg('暂停')
 
     def stop(self):
         self.det_thread.jump_out = True
@@ -556,7 +540,6 @@ class MainWindow(QMainWindow, Ui_mainWindow):
             ih, iw, _ = img_src.shape
             w = label.geometry().width()
             h = label.geometry().height()
-            # keep original aspect ratio
             if iw/w > ih/h:
                 scal = w / iw
                 nw = w
@@ -601,7 +584,7 @@ class MainWindow(QMainWindow, Ui_mainWindow):
         with open(config_file, 'w', encoding='utf-8') as f:
             f.write(config_json)
         MessageBox(
-            self.closeButton, title='Tips', text='Closing the program', time=2000, auto=True).exec_()
+            self.closeButton, title='Tips', text='正在关闭程序，请稍后', time=2000, auto=True).exec_()
         sys.exit(0)
 
 
@@ -609,5 +592,4 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     myWin = MainWindow()
     myWin.show()
-    # myWin.showMaximized()
     sys.exit(app.exec_())
